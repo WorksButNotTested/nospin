@@ -56,7 +56,9 @@ impl NonAtomicUsize {
     where
         F: Fn(usize) -> usize,
     {
-        self.set(f(self.get()))
+        let value =self.get();
+        self.set(f(value));
+        value
     }
 
     #[inline]
@@ -64,9 +66,8 @@ impl NonAtomicUsize {
         unsafe { *self.value.get() }
     }
 
-    fn set(&self, value: usize) -> usize {
+    fn set(&self, value: usize) {
         unsafe { *self.value.get() = value }
-        value
     }
 
     #[inline]
@@ -88,22 +89,8 @@ impl NonAtomicUsize {
     ) -> Result<usize, usize> {
         let value = self.get();
         if value == current {
-            Ok(self.set(new))
-        } else {
-            Err(value)
-        }
-    }
-
-    pub fn compare_exchange_weak(
-        &self,
-        current: usize,
-        new: usize,
-        _success: Ordering,
-        _failure: Ordering,
-    ) -> Result<usize, usize> {
-        let value = self.get();
-        if value == current {
-            Ok(self.set(new))
+            self.set(new);
+            Ok(new)
         } else {
             Err(value)
         }
@@ -323,7 +310,7 @@ impl<T: ?Sized> RwLock<T> {
     /// ```
     #[inline]
     pub fn write(&self) -> RwLockWriteGuard<T> {
-        self.try_write_internal(false)
+        self.try_write()
             .expect("Failed to get read lock, who are you waiting for?")
     }
 
@@ -443,27 +430,6 @@ impl<T: ?Sized> RwLock<T> {
         self.lock.fetch_and(!(WRITER | UPGRADED), Ordering::Release);
     }
 
-    #[inline(always)]
-    fn try_write_internal(&self, strong: bool) -> Option<RwLockWriteGuard<T>> {
-        if compare_exchange(
-            &self.lock,
-            0,
-            WRITER,
-            Ordering::Acquire,
-            Ordering::Relaxed,
-            strong,
-        )
-        .is_ok()
-        {
-            Some(RwLockWriteGuard {
-                inner: self,
-                data: unsafe { &mut *self.data.get() },
-            })
-        } else {
-            None
-        }
-    }
-
     /// Attempt to lock this rwlock with exclusive write access.
     ///
     /// This function does not ever block, and it will return `None` if a call
@@ -485,7 +451,22 @@ impl<T: ?Sized> RwLock<T> {
     /// ```
     #[inline]
     pub fn try_write(&self) -> Option<RwLockWriteGuard<T>> {
-        self.try_write_internal(true)
+        if
+            self.lock.compare_exchange(
+            0,
+            WRITER,
+            Ordering::Acquire,
+            Ordering::Relaxed,
+        )
+        .is_ok()
+        {
+            Some(RwLockWriteGuard {
+                inner: self,
+                data: unsafe { &mut *self.data.get() },
+            })
+        } else {
+            None
+        }
     }
 
     /// Attempt to lock this rwlock with exclusive write access.
@@ -494,7 +475,7 @@ impl<T: ?Sized> RwLock<T> {
     /// would otherwise succeed, which can result in more efficient code on some platforms.
     #[inline]
     pub fn try_write_weak(&self) -> Option<RwLockWriteGuard<T>> {
-        self.try_write_internal(false)
+        self.try_write()
     }
 
     /// Tries to obtain an upgradeable lock guard.
@@ -597,21 +578,30 @@ impl<'rwlock, T: ?Sized + fmt::Debug> RwLockUpgradableGuard<'rwlock, T> {
     /// ```
     #[inline]
     pub fn upgrade(self) -> RwLockWriteGuard<'rwlock, T> {
-        self.try_upgrade_internal(false)
+        self.try_upgrade()
             .expect("Failed to get read lock, who are you waiting for?")
     }
 }
 
 impl<'rwlock, T: ?Sized> RwLockUpgradableGuard<'rwlock, T> {
-    #[inline(always)]
-    fn try_upgrade_internal(self, strong: bool) -> Result<RwLockWriteGuard<'rwlock, T>, Self> {
-        if compare_exchange(
-            &self.inner.lock,
+    /// Tries to upgrade an upgradeable lock guard to a writable lock guard.
+    ///
+    /// ```
+    /// let mylock = spin::RwLock::new(0);
+    /// let upgradeable = mylock.upgradeable_read(); // Readable, but not yet writable
+    ///
+    /// match upgradeable.try_upgrade() {
+    ///     Ok(writable) => /* upgrade successful - use writable lock guard */ (),
+    ///     Err(upgradeable) => /* upgrade unsuccessful */ (),
+    /// };
+    /// ```
+    #[inline]
+    pub fn try_upgrade(self) -> Result<RwLockWriteGuard<'rwlock, T>, Self> {
+        if self.inner.lock.compare_exchange(
             UPGRADED,
             WRITER,
             Ordering::Acquire,
             Ordering::Relaxed,
-            strong,
         )
         .is_ok()
         {
@@ -632,27 +622,11 @@ impl<'rwlock, T: ?Sized> RwLockUpgradableGuard<'rwlock, T> {
 
     /// Tries to upgrade an upgradeable lock guard to a writable lock guard.
     ///
-    /// ```
-    /// let mylock = spin::RwLock::new(0);
-    /// let upgradeable = mylock.upgradeable_read(); // Readable, but not yet writable
-    ///
-    /// match upgradeable.try_upgrade() {
-    ///     Ok(writable) => /* upgrade successful - use writable lock guard */ (),
-    ///     Err(upgradeable) => /* upgrade unsuccessful */ (),
-    /// };
-    /// ```
-    #[inline]
-    pub fn try_upgrade(self) -> Result<RwLockWriteGuard<'rwlock, T>, Self> {
-        self.try_upgrade_internal(true)
-    }
-
-    /// Tries to upgrade an upgradeable lock guard to a writable lock guard.
-    ///
     /// Unlike [`RwLockUpgradableGuard::try_upgrade`], this function is allowed to spuriously fail even when upgrading
     /// would otherwise succeed, which can result in more efficient code on some platforms.
     #[inline]
     pub fn try_upgrade_weak(self) -> Result<RwLockWriteGuard<'rwlock, T>, Self> {
-        self.try_upgrade_internal(false)
+        self.try_upgrade()
     }
 
     #[inline]
@@ -868,22 +842,6 @@ impl<'rwlock, T: ?Sized> Drop for RwLockWriteGuard<'rwlock, T> {
         self.inner
             .lock
             .fetch_and(!(WRITER | UPGRADED), Ordering::Release);
-    }
-}
-
-#[inline(always)]
-fn compare_exchange(
-    atomic: &NonAtomicUsize,
-    current: usize,
-    new: usize,
-    success: Ordering,
-    failure: Ordering,
-    strong: bool,
-) -> Result<usize, usize> {
-    if strong {
-        atomic.compare_exchange(current, new, success, failure)
-    } else {
-        atomic.compare_exchange_weak(current, new, success, failure)
     }
 }
 
