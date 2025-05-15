@@ -382,7 +382,7 @@ mod tests {
 
         assert!(INIT.get().is_none());
         INIT.call_once(|| 2);
-        assert_eq!(INIT.get().map(|r| *r), Some(2));
+        assert_eq!(INIT.get().copied(), Some(2));
     }
 
     #[test]
@@ -407,7 +407,7 @@ mod tests {
 
         assert!(INIT.poll().is_none());
         INIT.call_once(|| 3);
-        assert_eq!(INIT.poll().map(|r| *r), Some(3));
+        assert_eq!(INIT.poll().copied(), Some(3));
     }
 
     #[test]
