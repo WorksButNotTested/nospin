@@ -15,7 +15,6 @@ struct NonAtomicUsize {
 struct Ordering;
 
 impl Ordering {
-    pub const DEFAULT: Ordering = Ordering;
     #[allow(non_upper_case_globals)]
     pub const Relaxed: Ordering = Ordering;
     #[allow(non_upper_case_globals)]
@@ -99,8 +98,8 @@ impl NonAtomicUsize {
         &self,
         current: usize,
         new: usize,
-        success: Ordering,
-        failure: Ordering,
+        _success: Ordering,
+        _failure: Ordering,
     ) -> Result<usize, usize> {
         let value = self.get();
         if value == current {

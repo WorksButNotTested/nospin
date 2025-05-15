@@ -55,6 +55,21 @@ unsafe impl<T: ?Sized + Send> Sync for Mutex<T> {}
 unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
 
 impl<T> Mutex<T> {
+    /// Creates a new [`Mutex`] wrapping the supplied data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spin::Mutex;
+    ///
+    /// static MUTEX: Mutex<()> = Mutex::new(());
+    ///
+    /// fn demo() {
+    ///     let lock = MUTEX.lock();
+    ///     // do something with lock
+    ///     drop(lock);
+    /// }
+    /// ```
     #[inline(always)]
     pub const fn new(data: T) -> Mutex<T> {
         Mutex {
@@ -63,6 +78,24 @@ impl<T> Mutex<T> {
         }
     }
 
+    /// Consumes this [`Mutex`] and unwraps the underlying data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let lock = spin::Mutex::new(42);
+    /// assert_eq!(42, lock.into_inner());
+    /// ```
+    #[inline(always)]
+    pub fn into_inner(self) -> T {
+        // We know statically that there are no outstanding references to
+        // `self` so there's no need to lock.
+        let Mutex { data, .. } = self;
+        data.into_inner()
+    }
+}
+
+impl<T: ?Sized> Mutex<T> {
     /// Force unlock this [`Mutex`].
     ///
     /// # Safety
@@ -93,22 +126,6 @@ impl<T> Mutex<T> {
         // We know statically that there are no other references to `self`, so
         // there's no need to lock the inner mutex.
         unsafe { &mut *self.data.get() }
-    }
-
-    /// Consumes this [`Mutex`] and unwraps the underlying data.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let lock = spin::Mutex::new(42);
-    /// assert_eq!(42, lock.into_inner());
-    /// ```
-    #[inline(always)]
-    pub fn into_inner(self) -> T {
-        // We know statically that there are no outstanding references to
-        // `self` so there's no need to lock.
-        let Mutex { data, .. } = self;
-        data.into_inner()
     }
 
     /// Returns `true` if the lock is currently held.
@@ -169,6 +186,9 @@ impl<T> Mutex<T> {
         if self.is_locked() {
             None
         } else {
+            unsafe {
+                *self.locked.get() = true;
+            }
             Some(MutexGuard {
                 locked: self.locked.get(),
                 data: self.data.get(),
@@ -199,5 +219,152 @@ impl<T: ?Sized> DerefMut for MutexGuard<T> {
 impl<T: ?Sized> Drop for MutexGuard<T> {
     fn drop(&mut self) {
         unsafe { *self.locked = false }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::prelude::v1::*;
+
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc::channel;
+    use std::thread;
+
+    type Mutex<T> = super::Mutex<T>;
+
+    #[derive(Eq, PartialEq, Debug)]
+    struct NonCopy(i32);
+
+    #[test]
+    fn smoke() {
+        let m = Mutex::<_>::new(());
+        drop(m.lock());
+        drop(m.lock());
+    }
+
+    #[test]
+    fn lots_and_lots() {
+        static M: Mutex<()> = Mutex::<_>::new(());
+        static mut CNT: u32 = 0;
+        const J: u32 = 1000;
+        const K: u32 = 3;
+
+        fn inc() {
+            for _ in 0..J {
+                unsafe {
+                    let _g = M.lock();
+                    CNT += 1;
+                }
+            }
+        }
+
+        for _ in 0..K {
+            inc();
+        }
+
+        assert_eq!(unsafe { CNT }, J * K);
+    }
+
+    #[test]
+    fn try_lock() {
+        let mutex = Mutex::<_>::new(42);
+
+        // First lock succeeds
+        let a = mutex.try_lock();
+        assert_eq!(a.as_ref().map(|r| **r), Some(42));
+
+        // Additional lock fails
+        let b = mutex.try_lock();
+        assert!(b.is_none());
+
+        // After dropping lock, it succeeds again
+        ::core::mem::drop(a);
+        let c = mutex.try_lock();
+        assert_eq!(c.as_ref().map(|r| **r), Some(42));
+    }
+
+    #[test]
+    fn test_into_inner() {
+        let m = Mutex::<_>::new(NonCopy(10));
+        assert_eq!(m.into_inner(), NonCopy(10));
+    }
+
+    #[test]
+    fn test_into_inner_drop() {
+        struct Foo(Arc<AtomicUsize>);
+        impl Drop for Foo {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+        let num_drops = Arc::new(AtomicUsize::new(0));
+        let m = Mutex::<_>::new(Foo(num_drops.clone()));
+        assert_eq!(num_drops.load(Ordering::SeqCst), 0);
+        {
+            let _inner = m.into_inner();
+            assert_eq!(num_drops.load(Ordering::SeqCst), 0);
+        }
+        assert_eq!(num_drops.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn test_mutex_arc_nested() {
+        // Tests nested mutexes and access
+        // to underlying data.
+        let arc = Arc::new(Mutex::<_>::new(1));
+        let arc2 = Arc::new(Mutex::<_>::new(arc));
+        let (tx, rx) = channel();
+        let t = thread::spawn(move || {
+            let lock = arc2.lock();
+            let lock2 = lock.lock();
+            assert_eq!(*lock2, 1);
+            tx.send(()).unwrap();
+        });
+        rx.recv().unwrap();
+        t.join().unwrap();
+    }
+
+    #[test]
+    fn test_mutex_arc_access_in_unwind() {
+        let arc = Arc::new(Mutex::<_>::new(1));
+        let arc2 = arc.clone();
+        let _ = thread::spawn(move || -> () {
+            struct Unwinder {
+                i: Arc<Mutex<i32>>,
+            }
+            impl Drop for Unwinder {
+                fn drop(&mut self) {
+                    *self.i.lock() += 1;
+                }
+            }
+            let _u = Unwinder { i: arc2 };
+            panic!();
+        })
+        .join();
+        let lock = arc.lock();
+        assert_eq!(*lock, 2);
+    }
+
+    #[test]
+    fn test_mutex_unsized() {
+        let mutex: &Mutex<[i32]> = &Mutex::<_>::new([1, 2, 3]);
+        {
+            let b = &mut *mutex.lock();
+            b[0] = 4;
+            b[2] = 5;
+        }
+        let comp: &[i32] = &[4, 2, 5];
+        assert_eq!(&*mutex.lock(), comp);
+    }
+
+    #[test]
+    fn test_mutex_force_lock() {
+        let lock = Mutex::<_>::new(());
+        ::std::mem::forget(lock.lock());
+        unsafe {
+            lock.force_unlock();
+        }
+        assert!(lock.try_lock().is_some());
     }
 }
