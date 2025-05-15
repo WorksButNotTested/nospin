@@ -100,7 +100,7 @@ impl NonAtomicUsize {
 /// A lock that provides data access to either one writer or many readers.
 ///
 /// This lock behaves in a similar manner to its namesake `std::sync::RwLock` but
-/// it is not thread-safe and is intended for single-threaded environments.
+/// it is NOT thread-safe and is intended for single-threaded environments.
 ///
 /// This type of lock allows a number of readers or at most one writer at any
 /// point in time. The write portion of this lock typically allows modification
@@ -263,14 +263,12 @@ impl<T> RwLock<T> {
 }
 
 impl<T: ?Sized> RwLock<T> {
-    /// Locks this rwlock with shared read access, blocking the current thread
-    /// until it can be acquired.
+    /// Locks this rwlock with shared read access, panicking if it can be acquired.
     ///
-    /// The calling thread will be blocked until there are no more writers which
-    /// hold the lock. There may be other readers currently inside the lock when
-    /// this method returns. This method does not provide any guarantees with
-    /// respect to the ordering of whether contentious readers or writers will
-    /// acquire the lock first.
+    /// There may be other readers currently inside the lock when this method
+    /// returns. This method does not provide any guarantees with respect to the
+    /// ordering of whether contentious readers or writers will acquire the lock
+    /// first.
     ///
     /// Returns an RAII guard which will release this thread's shared access
     /// once it is dropped.
@@ -290,8 +288,7 @@ impl<T: ?Sized> RwLock<T> {
             .expect("Failed to get read lock, who are you waiting for?")
     }
 
-    /// Lock this rwlock with exclusive write access, blocking the current
-    /// thread until it can be acquired.
+    /// Lock this rwlock with exclusive write access, panicking if it can be acquired.
     ///
     /// This function will not return while other writers or other readers
     /// currently have access to the lock.
