@@ -1,7 +1,7 @@
 [package]
 name = "nospin"
 description = "Rust crate containing an embedded version of a Mutex which can be used in `no_std` projects which are single-threaded."
-version = "0.1.6"
+version = "0.2.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/WorksButNotTested/nospin"
 keywords = ["nostd", "mutex", "lazy", "once", "single-threaded"]
@@ -17,12 +17,20 @@ documentation = "https://docs.rs/nospin"
 crate-type = ["rlib"]
 
 [features]
-default = ["lazy", "mutex", "once", "rwlock"]
-lazy = []
+default = ["lazy", "lock_api", "mutex", "once", "rwlock"]
+# Enables `Lazy`.
+lazy = ["once"]
+# Enables `lock_api`-compatible types that use the primitives in this crate internally.
+lock_api = ["dep:lock_api_crate"]
+# Enables `Mutex`.
 mutex = []
+# Enables `Once`.
 once = []
+# Enables `RwLock`.
 rwlock = []
-test = []
+
+[dependencies]
+lock_api_crate = { package = "lock_api", version = "0.4", optional = true }
 
 [build-dependencies]
 just = { version = "1.40.0" }

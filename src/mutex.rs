@@ -222,6 +222,32 @@ impl<T: ?Sized> Drop for MutexGuard<T> {
     }
 }
 
+#[cfg(feature = "lock_api")]
+unsafe impl lock_api_crate::RawMutex for Mutex<()> {
+    type GuardMarker = lock_api_crate::GuardSend;
+
+    #[allow(clippy::declare_interior_mutable_const)]
+    const INIT: Self = Self::new(());
+
+    fn lock(&self) {
+        // Prevent guard destructor running
+        core::mem::forget(Self::lock(self));
+    }
+
+    fn try_lock(&self) -> bool {
+        // Prevent guard destructor running
+        Self::try_lock(self).map(core::mem::forget).is_some()
+    }
+
+    unsafe fn unlock(&self) {
+        unsafe { self.force_unlock() };
+    }
+
+    fn is_locked(&self) -> bool {
+        self.is_locked()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::prelude::v1::*;

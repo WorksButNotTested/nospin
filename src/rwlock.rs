@@ -113,8 +113,8 @@ impl NonAtomicUsize {
 /// locking methods implement `Deref` (and `DerefMut` for the `write` methods)
 /// to allow access to the contained of the lock.
 ///
-/// An [`RwLockUpgradableGuard`](RwLockUpgradableGuard) can be upgraded to a
-/// writable guard through the [`RwLockUpgradableGuard::upgrade`](RwLockUpgradableGuard::upgrade)
+/// An [`RwLockUpgradableGuard`] can be upgraded to a writable guard through the
+/// [`RwLockUpgradableGuard::upgrade`](RwLockUpgradableGuard::upgrade) and
 /// [`RwLockUpgradableGuard::try_upgrade`](RwLockUpgradableGuard::try_upgrade) functions.
 /// Writable or upgradeable guards can be downgraded through their respective `downgrade`
 /// functions.
@@ -833,6 +833,130 @@ impl<'rwlock, T: ?Sized> Drop for RwLockWriteGuard<'rwlock, T> {
         self.inner
             .lock
             .fetch_and(!(WRITER | UPGRADED), Ordering::Release);
+    }
+}
+
+#[cfg(feature = "lock_api")]
+unsafe impl lock_api_crate::RawRwLock for RwLock<()> {
+    type GuardMarker = lock_api_crate::GuardSend;
+
+    #[allow(clippy::declare_interior_mutable_const)]
+    const INIT: Self = Self::new(());
+
+    #[inline(always)]
+    fn lock_exclusive(&self) {
+        // Prevent guard destructor running
+        core::mem::forget(self.write());
+    }
+
+    #[inline(always)]
+    fn try_lock_exclusive(&self) -> bool {
+        // Prevent guard destructor running
+        self.try_write().map(core::mem::forget).is_some()
+    }
+
+    #[inline(always)]
+    unsafe fn unlock_exclusive(&self) {
+        drop(RwLockWriteGuard {
+            inner: self,
+            data: &mut (),
+        });
+    }
+
+    #[inline(always)]
+    fn lock_shared(&self) {
+        // Prevent guard destructor running
+        core::mem::forget(self.read());
+    }
+
+    #[inline(always)]
+    fn try_lock_shared(&self) -> bool {
+        // Prevent guard destructor running
+        self.try_read().map(core::mem::forget).is_some()
+    }
+
+    #[inline(always)]
+    unsafe fn unlock_shared(&self) {
+        drop(RwLockReadGuard {
+            lock: &self.lock,
+            data: &(),
+        });
+    }
+
+    #[inline(always)]
+    fn is_locked(&self) -> bool {
+        self.lock.load(Ordering::Relaxed) != 0
+    }
+}
+
+#[cfg(feature = "lock_api")]
+unsafe impl lock_api_crate::RawRwLockUpgrade for RwLock<()> {
+    #[inline(always)]
+    fn lock_upgradable(&self) {
+        // Prevent guard destructor running
+        core::mem::forget(self.upgradeable_read());
+    }
+
+    #[inline(always)]
+    fn try_lock_upgradable(&self) -> bool {
+        // Prevent guard destructor running
+        self.try_upgradeable_read().map(core::mem::forget).is_some()
+    }
+
+    #[inline(always)]
+    unsafe fn unlock_upgradable(&self) {
+        drop(RwLockUpgradableGuard {
+            inner: self,
+            data: &(),
+        });
+    }
+
+    #[inline(always)]
+    unsafe fn upgrade(&self) {
+        let tmp_guard = RwLockUpgradableGuard {
+            inner: self,
+            data: &(),
+        };
+        core::mem::forget(tmp_guard.upgrade());
+    }
+
+    #[inline(always)]
+    unsafe fn try_upgrade(&self) -> bool {
+        let tmp_guard = RwLockUpgradableGuard {
+            inner: self,
+            data: &(),
+        };
+        tmp_guard.try_upgrade().map(core::mem::forget).is_ok()
+    }
+}
+
+#[cfg(feature = "lock_api")]
+unsafe impl lock_api_crate::RawRwLockDowngrade for RwLock<()> {
+    unsafe fn downgrade(&self) {
+        let tmp_guard = RwLockWriteGuard {
+            inner: self,
+            data: &mut (),
+        };
+        core::mem::forget(tmp_guard.downgrade());
+    }
+}
+
+#[cfg(feature = "lock_api")]
+unsafe impl lock_api_crate::RawRwLockUpgradeDowngrade for RwLock<()> {
+    unsafe fn downgrade_upgradable(&self) {
+        let tmp_guard = RwLockUpgradableGuard {
+            inner: self,
+            data: &(),
+        };
+        core::mem::forget(tmp_guard.downgrade());
+    }
+
+    unsafe fn downgrade_to_upgradable(&self) {
+        let tmp_guard = RwLockWriteGuard {
+            inner: self,
+            data: &mut (),
+        };
+        core::mem::forget(tmp_guard.downgrade_to_upgradeable());
     }
 }
 
