@@ -1,3 +1,4 @@
+//! Locks that have the same behaviour as a mutex.
 use {
     alloc::fmt,
     core::{
@@ -197,6 +198,7 @@ impl<T: ?Sized> Mutex<T> {
     }
 }
 
+/// A generic guard that will protect some data access
 pub struct MutexGuard<T: ?Sized> {
     locked: *mut bool,
     data: *mut T,

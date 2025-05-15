@@ -1,3 +1,7 @@
+//! Synchronization primitives for lazy evaluation.
+//!
+//! Implementation adapted from the `SyncLazy` type of the standard library. See:
+//! <https://doc.rust-lang.org/std/lazy/struct.SyncLazy.html>
 use {
     crate::once::Once,
     alloc::fmt,

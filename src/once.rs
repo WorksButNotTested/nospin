@@ -1,3 +1,4 @@
+//! Synchronization primitives for one-time evaluation.
 use {
     alloc::fmt,
     core::{cell::UnsafeCell, convert::Infallible, mem::MaybeUninit},
@@ -62,6 +63,7 @@ unsafe impl<T: Send + Sync> Sync for Once<T> {}
 unsafe impl<T: Send> Send for Once<T> {}
 
 impl<T> Once<T> {
+    /// Initialization constant of [`Once`].
     #[allow(clippy::declare_interior_mutable_const)]
     pub const INIT: Self = Self {
         initialized: UnsafeCell::new(false),
@@ -69,6 +71,7 @@ impl<T> Once<T> {
         data: UnsafeCell::new(MaybeUninit::uninit()),
     };
 
+    /// Creates a new [`Once`].
     pub const fn new() -> Self {
         Self::INIT
     }
