@@ -1,3 +1,5 @@
+#![no_std]
+
 #[cfg(feature = "lazy")]
 pub mod lazy;
 
