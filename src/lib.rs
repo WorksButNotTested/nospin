@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
 
@@ -19,3 +19,9 @@ pub mod once;
 
 #[cfg(feature = "once")]
 pub use once::Once;
+
+#[cfg(feature = "rwlock")]
+pub mod rwlock;
+
+#[cfg(feature = "rwlock")]
+pub use rwlock::RwLock;

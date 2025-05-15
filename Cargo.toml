@@ -17,10 +17,12 @@ documentation = "https://docs.rs/nospin"
 crate-type = ["rlib"]
 
 [features]
-default = ["lazy", "mutex", "once"]
+default = ["lazy", "mutex", "once", "rwlock"]
 lazy = []
 mutex = []
 once = []
+rwlock = []
+test = []
 
 [build-dependencies]
 just = { version = "1.40.0" }

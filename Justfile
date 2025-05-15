@@ -17,5 +17,5 @@ doc:
   cargo doc
 
 test:
-  cargo test
+  cargo test -F test
 
