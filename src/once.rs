@@ -9,6 +9,7 @@ unsafe impl<T: Send + Sync> Sync for Once<T> {}
 unsafe impl<T: Send> Send for Once<T> {}
 
 impl<T> Once<T> {
+    #[allow(clippy::declare_interior_mutable_const)]
     pub const INIT: Self = Self {
         initialized: UnsafeCell::new(false),
         data: UnsafeCell::new(MaybeUninit::uninit()),
@@ -53,5 +54,11 @@ impl<T> Once<T> {
 
     pub fn get_mut(&mut self) -> Option<&mut T> {
         unsafe { self.is_initialized().then(|| self.force_get_mut()) }
+    }
+}
+
+impl<T> Default for Once<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
