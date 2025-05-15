@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 #[cfg(feature = "lazy")]
 pub mod lazy;
 
