@@ -1,0 +1,26 @@
+[package]
+name = "nospin"
+description = "Rust crate containing an embedded version of a Mutex which can be used in `no_std` projects which are single-threaded."
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/WorksButNotTested/nospin"
+keywords = ["nostd", "mutex", "lazy", "once", "single", "threaded"]
+edition = "2024"
+rust-version = "1.85"
+categories = ["embedded", "os"]
+authors = [
+  "WorksButNotTested <62701594+WorksButNotTested@users.noreply.github.com>",
+]
+documentation = "https://docs.rs/nospin"
+
+[lib]
+crate-type = ["rlib"]
+
+[features]
+default = ["lazy", "mutex", "once"]
+lazy = []
+mutex = []
+once = []
+
+[build-dependencies]
+just = { version = "1.40.0" }
