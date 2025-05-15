@@ -82,7 +82,7 @@ impl<T, F: FnOnce() -> T> Lazy<T, F> {
     /// # Examples
     ///
     /// ```
-    /// use spin::Lazy;
+    /// use nospin::Lazy;
     ///
     /// let lazy = Lazy::new(|| 92);
     ///

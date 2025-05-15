@@ -12,9 +12,9 @@ use {
 /// # Example
 ///
 /// ```
-/// use spin;
+/// use nospin;
 ///
-/// let lock = spin::Mutex::new(0);
+/// let lock = nospin::Mutex::new(0);
 ///
 /// // Modify the data
 /// *lock.lock() = 2;
@@ -60,7 +60,7 @@ impl<T> Mutex<T> {
     /// # Example
     ///
     /// ```
-    /// use spin::Mutex;
+    /// use nospin::Mutex;
     ///
     /// static MUTEX: Mutex<()> = Mutex::new(());
     ///
@@ -83,7 +83,7 @@ impl<T> Mutex<T> {
     /// # Example
     ///
     /// ```
-    /// let lock = spin::Mutex::new(42);
+    /// let lock = nospin::Mutex::new(42);
     /// assert_eq!(42, lock.into_inner());
     /// ```
     #[inline(always)]
@@ -117,7 +117,7 @@ impl<T: ?Sized> Mutex<T> {
     /// # Example
     ///
     /// ```
-    /// let mut lock = spin::Mutex::new(0);
+    /// let mut lock = nospin::Mutex::new(0);
     /// *lock.get_mut() = 10;
     /// assert_eq!(*lock.lock(), 10);
     /// ```
@@ -145,7 +145,7 @@ impl<T: ?Sized> Mutex<T> {
     /// and the lock will be dropped when the guard falls out of scope.
     ///
     /// ```
-    /// let lock = spin::Mutex::new(0);
+    /// let lock = nospin::Mutex::new(0);
     /// {
     ///     let mut data = lock.lock();
     ///     // The lock is now locked and the data can be accessed
@@ -172,7 +172,7 @@ impl<T: ?Sized> Mutex<T> {
     /// # Example
     ///
     /// ```
-    /// let lock = spin::Mutex::new(42);
+    /// let lock = nospin::Mutex::new(42);
     ///
     /// let maybe_guard = lock.try_lock();
     /// assert!(maybe_guard.is_some());

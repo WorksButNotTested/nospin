@@ -12,7 +12,7 @@ pub use lazy::Lazy;
 pub mod mutex;
 
 #[cfg(feature = "mutex")]
-pub use mutex::Mutex;
+pub use mutex::{Mutex, MutexGuard};
 
 #[cfg(feature = "once")]
 pub mod once;
@@ -24,4 +24,4 @@ pub use once::Once;
 pub mod rwlock;
 
 #[cfg(feature = "rwlock")]
-pub use rwlock::RwLock;
+pub use rwlock::{RwLock, RwLockReadGuard, RwLockUpgradableGuard, RwLockWriteGuard};

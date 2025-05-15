@@ -56,7 +56,7 @@ impl NonAtomicUsize {
     where
         F: Fn(usize) -> usize,
     {
-        let value =self.get();
+        let value = self.get();
         self.set(f(value));
         value
     }
@@ -130,9 +130,9 @@ impl NonAtomicUsize {
 /// # Examples
 ///
 /// ```
-/// use spin;
+/// use nospin;
 ///
-/// let lock = spin::RwLock::new(5);
+/// let lock = nospin::RwLock::new(5);
 ///
 /// // many reader locks can be held at once
 /// {
@@ -206,9 +206,9 @@ impl<T> RwLock<T> {
     /// May be used statically:
     ///
     /// ```
-    /// use spin;
+    /// use nospin;
     ///
-    /// static RW_LOCK: spin::RwLock<()> = spin::RwLock::new(());
+    /// static RW_LOCK: nospin::RwLock<()> = nospin::RwLock::new(());
     ///
     /// fn demo() {
     ///     let lock = RW_LOCK.read();
@@ -242,7 +242,7 @@ impl<T> RwLock<T> {
     ///
     /// # Example
     /// ```
-    /// let lock = spin::RwLock::new(42);
+    /// let lock = nospin::RwLock::new(42);
     ///
     /// unsafe {
     ///     core::mem::forget(lock.write());
@@ -276,7 +276,7 @@ impl<T: ?Sized> RwLock<T> {
     /// once it is dropped.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     /// {
     ///     let mut data = mylock.read();
     ///     // The lock is now locked and the data can be read
@@ -300,7 +300,7 @@ impl<T: ?Sized> RwLock<T> {
     /// when dropped.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     /// {
     ///     let mut data = mylock.write();
     ///     // The lock is now locked and the data can be written
@@ -349,7 +349,7 @@ impl<T: ?Sized> RwLock<T> {
     /// or writers will acquire the lock first.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     /// {
     ///     match mylock.try_read() {
     ///         Some(data) => {
@@ -437,7 +437,7 @@ impl<T: ?Sized> RwLock<T> {
     /// returned.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     /// {
     ///     match mylock.try_write() {
     ///         Some(mut data) => {
@@ -451,14 +451,10 @@ impl<T: ?Sized> RwLock<T> {
     /// ```
     #[inline]
     pub fn try_write(&self) -> Option<RwLockWriteGuard<T>> {
-        if
-            self.lock.compare_exchange(
-            0,
-            WRITER,
-            Ordering::Acquire,
-            Ordering::Relaxed,
-        )
-        .is_ok()
+        if self
+            .lock
+            .compare_exchange(0, WRITER, Ordering::Acquire, Ordering::Relaxed)
+            .is_ok()
         {
             Some(RwLockWriteGuard {
                 inner: self,
@@ -501,7 +497,7 @@ impl<T: ?Sized> RwLock<T> {
     /// # Examples
     ///
     /// ```
-    /// let mut lock = spin::RwLock::new(0);
+    /// let mut lock = nospin::RwLock::new(0);
     /// *lock.get_mut() = 10;
     /// assert_eq!(*lock.read(), 10);
     /// ```
@@ -541,9 +537,9 @@ impl<'rwlock, T: ?Sized> RwLockReadGuard<'rwlock, T> {
     /// Note that this function will permanently lock the original lock for all but reading locks.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     ///
-    /// let data: &i32 = spin::RwLockReadGuard::leak(mylock.read());
+    /// let data: &i32 = nospin::RwLockReadGuard::leak(mylock.read());
     ///
     /// assert_eq!(*data, 0);
     /// ```
@@ -571,7 +567,7 @@ impl<'rwlock, T: ?Sized + fmt::Debug> RwLockUpgradableGuard<'rwlock, T> {
     /// Upgrades an upgradeable lock guard to a writable lock guard.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     ///
     /// let upgradeable = mylock.upgradeable_read(); // Readable, but not yet writable
     /// let writable = upgradeable.upgrade();
@@ -587,7 +583,7 @@ impl<'rwlock, T: ?Sized> RwLockUpgradableGuard<'rwlock, T> {
     /// Tries to upgrade an upgradeable lock guard to a writable lock guard.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     /// let upgradeable = mylock.upgradeable_read(); // Readable, but not yet writable
     ///
     /// match upgradeable.try_upgrade() {
@@ -597,13 +593,11 @@ impl<'rwlock, T: ?Sized> RwLockUpgradableGuard<'rwlock, T> {
     /// ```
     #[inline]
     pub fn try_upgrade(self) -> Result<RwLockWriteGuard<'rwlock, T>, Self> {
-        if self.inner.lock.compare_exchange(
-            UPGRADED,
-            WRITER,
-            Ordering::Acquire,
-            Ordering::Relaxed,
-        )
-        .is_ok()
+        if self
+            .inner
+            .lock
+            .compare_exchange(UPGRADED, WRITER, Ordering::Acquire, Ordering::Relaxed)
+            .is_ok()
         {
             let inner = self.inner;
 
@@ -633,7 +627,7 @@ impl<'rwlock, T: ?Sized> RwLockUpgradableGuard<'rwlock, T> {
     /// Downgrades the upgradeable lock guard to a readable, shared lock guard. Cannot fail and is guaranteed not to spin.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(1);
+    /// let mylock = nospin::RwLock::new(1);
     ///
     /// let upgradeable = mylock.upgradeable_read();
     /// assert!(mylock.try_read().is_none());
@@ -663,9 +657,9 @@ impl<'rwlock, T: ?Sized> RwLockUpgradableGuard<'rwlock, T> {
     /// Note that this function will permanently lock the original lock.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     ///
-    /// let data: &i32 = spin::RwLockUpgradableGuard::leak(mylock.upgradeable_read());
+    /// let data: &i32 = nospin::RwLockUpgradableGuard::leak(mylock.upgradeable_read());
     ///
     /// assert_eq!(*data, 0);
     /// ```
@@ -693,7 +687,7 @@ impl<'rwlock, T: ?Sized> RwLockWriteGuard<'rwlock, T> {
     /// Downgrades the writable lock guard to a readable, shared lock guard. Cannot fail and is guaranteed not to spin.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     ///
     /// let mut writable = mylock.write();
     /// *writable = 1;
@@ -721,7 +715,7 @@ impl<'rwlock, T: ?Sized> RwLockWriteGuard<'rwlock, T> {
     /// Downgrades the writable lock guard to an upgradable, shared lock guard. Cannot fail and is guaranteed not to spin.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     ///
     /// let mut writable = mylock.write();
     /// *writable = 1;
@@ -755,9 +749,9 @@ impl<'rwlock, T: ?Sized> RwLockWriteGuard<'rwlock, T> {
     /// Note that this function will permanently lock the original lock.
     ///
     /// ```
-    /// let mylock = spin::RwLock::new(0);
+    /// let mylock = nospin::RwLock::new(0);
     ///
-    /// let data: &mut i32 = spin::RwLockWriteGuard::leak(mylock.write());
+    /// let data: &mut i32 = nospin::RwLockWriteGuard::leak(mylock.write());
     ///
     /// *data = 1;
     /// assert_eq!(*data, 1);

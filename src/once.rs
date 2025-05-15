@@ -14,9 +14,9 @@ use {
 /// # Examples
 ///
 /// ```
-/// use spin;
+/// use nospin;
 ///
-/// static START: spin::Once = spin::Once::new();
+/// static START: nospin::Once = nospin::Once::new();
 ///
 /// START.call_once(|| {
 ///     // run initialization here
@@ -128,9 +128,9 @@ impl<T> Once<T> {
     /// # Examples
     ///
     /// ```
-    /// use spin;
+    /// use nospin;
     ///
-    /// static INIT: spin::Once<usize> = spin::Once::new();
+    /// static INIT: nospin::Once<usize> = nospin::Once::new();
     ///
     /// fn get_cached_val() -> usize {
     ///     *INIT.call_once(expensive_computation)
@@ -167,9 +167,9 @@ impl<T> Once<T> {
     /// # Examples
     ///
     /// ```
-    /// use spin;
+    /// use nospin;
     ///
-    /// static INIT: spin::Once<usize> = spin::Once::new();
+    /// static INIT: nospin::Once<usize> = nospin::Once::new();
     ///
     /// fn get_cached_val() -> Result<usize, String> {
     ///     INIT.try_call_once(expensive_fallible_computation).map(|x| *x)
