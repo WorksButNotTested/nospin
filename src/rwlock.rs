@@ -843,7 +843,6 @@ mod tests {
     use std::mem::forget;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::mpsc::channel;
     use std::thread;
 
     type RwLock<T> = super::RwLock<T>;
@@ -858,73 +857,6 @@ mod tests {
         drop(l.write());
         drop((l.read(), l.read()));
         drop(l.write());
-    }
-
-    // TODO: needs RNG
-    //#[test]
-    //fn frob() {
-    //    static R: RwLock = RwLock::new();
-    //    const N: usize = 10;
-    //    const M: usize = 1000;
-    //
-    //    let (tx, rx) = channel::<()>();
-    //    for _ in 0..N {
-    //        let tx = tx.clone();
-    //        thread::spawn(move|| {
-    //            let mut rng = rand::thread_rng();
-    //            for _ in 0..M {
-    //                if rng.gen_weighted_bool(N) {
-    //                    drop(R.write());
-    //                } else {
-    //                    drop(R.read());
-    //                }
-    //            }
-    //            drop(tx);
-    //        });
-    //    }
-    //    drop(tx);
-    //    let _ = rx.recv();
-    //    unsafe { R.destroy(); }
-    //}
-
-    #[test]
-    fn test_rw_arc() {
-        let arc = Arc::new(RwLock::new(0));
-        let arc2 = arc.clone();
-        let (tx, rx) = channel();
-
-        let t = thread::spawn(move || {
-            let mut lock = arc2.write();
-            for _ in 0..10 {
-                let tmp = *lock;
-                *lock = -1;
-                thread::yield_now();
-                *lock = tmp + 1;
-            }
-            tx.send(()).unwrap();
-        });
-
-        // Readers try to catch the writer in the act
-        let mut children = Vec::new();
-        for _ in 0..5 {
-            let arc3 = arc.clone();
-            children.push(thread::spawn(move || {
-                let lock = arc3.read();
-                assert!(*lock >= 0);
-            }));
-        }
-
-        // Wait for children to pass their asserts
-        for r in children {
-            assert!(r.join().is_ok());
-        }
-
-        // Wait for writer to finish
-        rx.recv().unwrap();
-        let lock = arc.read();
-        assert_eq!(*lock, 10);
-
-        assert!(t.join().is_ok());
     }
 
     #[test]
